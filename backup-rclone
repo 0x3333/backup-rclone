@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# Author: Tercio Gaudencio Filho <terciofilho [at] gmail.com>
+
+#
+# Variables
+# #########
+
+# Those variables must be defined here or in /etc/default/backup-rclone
+log_file="/var/log/backup-rclone.log"
+cfg_dir="/etc/rclone"
+
+verbose=""
+#verbose="--verbose"
+#verbose="--progress --verbose"
+
+[[ -f /etc/default/backup-rclone ]] && . /etc/default/backup-rclone
+
+readonly script_file=$(readlink -f "$0")
+
+#
+# LSB Functions
+# #############
+
+# The LSB functions must be present.
+lsb_fun=/lib/lsb/init-functions
+[[ -r "$lsb_fun" ]] || { >&2 echo "${0}: not able to read ${lsb_fun}: script cannot run"; exit 255; }
+. "$lsb_fun"
+
+#
+# Dependencies
+# ############
+
+check_dep_ret=
+function check_dep() {
+  DEP=$(which "$1")
+  [[ $? -ne 0 ]] && { >&2 log_failure_msg "$1 not available!"; exit 1; }
+  check_dep_ret="$DEP"
+}
+
+# Check if the mandatory variables have been set in the /etc/default.
+function check_vars() {
+  [[ -z "$log_file" ]] \
+    || [[ -z "$cfg_dir" ]] \
+    && { >&2 log_failure_msg "Mandatory variables not set!"; exit 2; }
+
+  [[ ! -d "$cfg_dir" ]] \
+    && { >&2 log_failure_msg "Config dir does not exists!"; exit 3; }
+}
+
+check_vars
+
+check_dep rclone
+readonly rclone="$check_dep_ret"
+
