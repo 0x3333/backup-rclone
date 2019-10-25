@@ -1,55 +1,320 @@
-#!/bin/bash
+#!/usr/bin/env python3
 
-# Author: Tercio Gaudencio Filho <terciofilho [at] gmail.com>
+# Ignore long lines
+# pylama:ignore=E501
 
-#
-# Variables
-# #########
-
-# Those variables must be defined here or in /etc/default/backup-rclone
-log_file="/var/log/backup-rclone.log"
-cfg_dir="/etc/rclone"
-
-verbose=""
-#verbose="--verbose"
-#verbose="--progress --verbose"
-
-[[ -f /etc/default/backup-rclone ]] && . /etc/default/backup-rclone
-
-readonly script_file=$(readlink -f "$0")
+import argparse
+import configparser
+import logging
+import os
+import subprocess
+import sys
+from typing import List, Tuple
 
 #
-# LSB Functions
-# #############
+# Constants
+#
 
-# The LSB functions must be present.
-lsb_fun=/lib/lsb/init-functions
-[[ -r "$lsb_fun" ]] || { >&2 echo "${0}: not able to read ${lsb_fun}: script cannot run"; exit 255; }
-. "$lsb_fun"
+# Default Files
+_CFG_FILE = "/etc/backup-rclone.conf"
+_LOG_FILE = "/var/log/backup-rclone.log"
+
+# Exit codes
+_EXIT_OK = 0
+_EXIT_MISSING_RCLONE = 1
+_EXIT_MIN_VERSION = 2
+_EXIT_NO_CONFIG = 3
+_EXIT_INVALID_CONFIG = 4
+_EXIT_NO_PROFILES = 5
+_EXIT_PROFILE_NOT_FOUND = 6
+_EXIT_FINISHED_WITH_ERRORS = 255
+
+# Configuration
+CFG_ACTION_SYNC = "sync"
+CFG_ACTION_COPY = "copy"
+
+# rclone
+RCLONE_MIN_VERSION = "1.47"
+RCLONE_EXECUTABLE = "rclone"
+RCLONE_DEFAULT_FILTER = "+ /**"
+RCLONE_ARG_VERSION = "--version"
+RCLONE_ARG_LISTREMOTES = ["listremotes", "--long"]
+RCLONE_ARG_FAST_LIST = "--fast-list"
+RCLONE_ARG_FILTER = "--filter"
+RCLONE_REMOTES_FAST_LIST = ["s3",
+                            "b2",
+                            "google cloud storage",
+                            "drive",
+                            "hubic",
+                            "jottacloud",
+                            "azureblob",
+                            "swift",
+                            "qingstor"]
 
 #
-# Dependencies
-# ############
+# Logging
+#
 
-check_dep_ret=
-function check_dep() {
-  DEP=$(which "$1")
-  [[ $? -ne 0 ]] && { >&2 log_failure_msg "$1 not available!"; exit 1; }
-  check_dep_ret="$DEP"
-}
 
-# Check if the mandatory variables have been set in the /etc/default.
-function check_vars() {
-  [[ -z "$log_file" ]] \
-    || [[ -z "$cfg_dir" ]] \
-    && { >&2 log_failure_msg "Mandatory variables not set!"; exit 2; }
+def setup_logging(log_file: str, verbosity: int):
+    """Setup the logging infrastructure.
 
-  [[ ! -d "$cfg_dir" ]] \
-    && { >&2 log_failure_msg "Config dir does not exists!"; exit 3; }
-}
+    Parameters
+    ----------
+    log_file: str
+        File to log all entries.
+    verbosity: int
+        Number from 0 to 3, which 0 shows only errors, and 3 show all messages including rclone output.
+    """
 
-check_vars
+    class StdOutFilter(logging.Filter):
+        def filter(self, rec) -> bool:
+            return rec.levelno < logging.WARNING
 
-check_dep rclone
-readonly rclone="$check_dep_ret"
+    verbosity = max(0, min(verbosity, 3))
 
+    # Set the log level based on the verbosity
+    log_level: int = max(10, 40 - (verbosity * 10))
+
+    formatter = logging.Formatter("[ %(levelname)s ] %(message)s")
+    formatterFile = logging.Formatter(
+        "%(asctime)s [ %(levelname)s ] [ %(pathname)s:%(lineno)d ] %(message)s")
+
+    handlerFile = logging.FileHandler(log_file)
+    handlerFile.setFormatter(formatterFile)
+    handlerFile.setLevel(log_level)
+
+    handlerOut = logging.StreamHandler(sys.stdout)
+    handlerOut.setFormatter(formatter)
+    handlerOut.setLevel(log_level)
+    handlerOut.addFilter(StdOutFilter())
+
+    handlerErr = logging.StreamHandler(sys.stderr)
+    handlerErr.setFormatter(formatter)
+    handlerErr.setLevel(logging.WARNING)
+
+    logging.basicConfig(level=log_level, handlers=[
+                        handlerFile, handlerOut, handlerErr])
+
+#
+# Configuration File
+#
+
+
+class Entry:
+    def __init__(self, name: str, entry: configparser.SectionProxy):
+        self.name = name
+        self.action = entry.get("action", None)
+        self.source = entry.get("source", None)
+        self.source_path = entry.get("source_path", None)
+        self.destination = entry.get("destination", None)
+        self.destination_path = entry.get("destination_path", None)
+        self.disable_fast_list = entry.getboolean("disable_fast_list", False)
+        extra_options = entry.get("extra_options", None)
+        self.extra_options = extra_options.split(" ") if extra_options else []
+        self.filter = entry.get("filter", RCLONE_DEFAULT_FILTER)
+
+        # Validate Config
+        if not self.action:
+            raise Exception(
+                f"Entry '{self.name}' has no 'action' value.")
+        if self.action not in [CFG_ACTION_SYNC, CFG_ACTION_COPY]:
+            raise Exception(
+                f"Entry '{self.name}' has a invalid 'action' value('{self.action}').")
+
+        # Source validation
+        if not self.source_path:
+            raise Exception(
+                f"Entry '{self.name}' is missing 'source_path'.")
+        elif (not self.source_path.startswith("/")) or self.source_path.startswith("./") or (not self.source and not os.path.exists(self.source_path)):
+            raise Exception(
+                f"Entry '{self.name}' has a 'source_path' is invalid or it doesn't exists locally.")
+
+        # Destination validation
+        if not self.destination_path:
+            raise Exception(
+                f"Entry '{self.name}' is missing 'destination_path'.")
+        elif (not self.destination_path.startswith("/")) or self.destination_path.startswith("./") or (not self.destination and not os.path.exists(self.destination_path)):
+            raise Exception(
+                f"Entry '{self.name}' has a 'destination_path' is invalid or it doesn't exists locally.")
+
+        if self.filter:
+            for line in self.filter.splitlines():
+                if not line.startswith("+") and not line.startswith("-"):
+                    raise Exception(
+                        f"Entry '{self.name}' has a invalid 'filter' value.")
+
+    def __repr__(self):
+        return f"<Entry name={self.name}, action={self.action}, source={self.source}, source_path={self.source_path}," \
+            f"destination={self.destination}, destination_path={self.destination_path}, " \
+            f"disable_fast_list={self.disable_fast_list}, extra_options={self.extra_options}, filter={self.filter}>"
+
+#
+# Backup Logic
+#
+
+
+def requires_fast_list(entry: Entry) -> bool:
+    exitcode, stdout, stderr = run_command(
+        [RCLONE_EXECUTABLE, *RCLONE_ARG_LISTREMOTES])
+    if exitcode == 0:
+        for line in stdout.splitlines():
+            tokens = [x.strip() for x in line.split(":")]
+            if entry.destination == tokens[0] or entry.source == tokens[0]:
+                return tokens[1] in RCLONE_REMOTES_FAST_LIST
+    return False
+
+
+def run(profile: str) -> int:
+    run = False
+    exit_code = _EXIT_OK
+    for entry in config_entries:
+        if profile == entry.name or not profile:
+            run = True
+            logging.info(f"Running profile {profile}")
+
+            args = [RCLONE_EXECUTABLE, entry.action, *entry.extra_options]
+            for fltr in entry.filter.splitlines():
+                args.append(RCLONE_ARG_FILTER)
+                args.append(fltr)
+
+            # Check if the remote support Fast List
+            if not entry.disable_fast_list and requires_fast_list(entry):
+                args.append(RCLONE_ARG_FAST_LIST)
+
+            # Set Source
+            if entry.source:
+                args.append(f"{entry.source}:{entry.source_path}")
+            else:
+                args.append(entry.source_path)
+
+            # Set Destination
+            if entry.destination:
+                args.append(f"{entry.destination}:{entry.destination_path}")
+            else:
+                args.append(entry.destination_path)
+
+            if run_command(args)[0] != 0:
+                exit_code = _EXIT_FINISHED_WITH_ERRORS
+
+    if not run:
+        if profile:
+            logging.error("Profile not found!")
+            return _EXIT_PROFILE_NOT_FOUND
+
+        else:
+            logging.error("No profiles specified!")
+            return _EXIT_NO_PROFILES
+    return exit_code
+
+
+#
+# Helper
+#
+
+
+def run_command(cmd: list) -> Tuple[int, str, str]:
+    """Run a command and return the exit code, stdout and stderr.
+
+    Parameters
+    ----------
+    cmd: list
+        Command to be run. A list with the command, and its arguments.
+    """
+    logging.debug("%s", " ".join(
+        [f"'{x}'" if " " in x else x for x in cmd]))
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            universal_newlines=True)
+    stdout = ""
+    stderr = ""
+    stdout_line = proc.stdout.readline()
+    stderr_line = proc.stderr.readline()
+    while stdout_line or stderr_line:
+        if stdout_line:
+            logging.debug(
+                f"stdout: {stdout_line.rstrip(os.linesep)}")
+            stdout += stdout_line
+        if stderr_line:
+            logging.error(
+                f"stderr: {stderr_line.rstrip(os.linesep)}")
+            stderr += stderr_line
+        stdout_line = proc.stdout.readline()
+        stderr_line = proc.stderr.readline()
+
+    proc.wait()
+
+    proc.stdout.close()
+    proc.stderr.close()
+    return proc.returncode, stdout, stderr
+
+#
+# Entry Point
+#
+
+
+config_entries: List[Entry] = []
+
+
+def main():
+
+    #
+    # Arguments
+    parser = argparse.ArgumentParser(
+        description="Create Rclone backups", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("-v", "--verbose", help="Verbose, can be issued multiple times to increase verbosity(Max 3 times)", dest="verbosity",
+                        action="count", default=0)
+    parser.add_argument("-c", "--config-file",
+                        help="Configuration file", default=_CFG_FILE)
+    parser.add_argument("-l", "--log-file", help="Log file", default=_LOG_FILE)
+    parser.add_argument("-p", "--profile", help="Profile to run")
+    args = parser.parse_args()
+
+    #
+    # Logging
+    setup_logging(args.log_file, args.verbosity)
+
+    #
+    # Check Rclone version
+    exitcode, stdout, stderr = run_command(
+        [RCLONE_EXECUTABLE, RCLONE_ARG_VERSION])
+    if exitcode != 0:
+        logging.error(f"Could not determine Rclone version!")
+        sys.exit(_EXIT_MISSING_RCLONE)
+    line = stdout.split('\n', 1)[0]
+    if not ("rclone v" in line and line.replace("rclone v", "") >= RCLONE_MIN_VERSION):
+        logging.error(f"Rclone minimum version is {RCLONE_MIN_VERSION}")
+        sys.exit(_EXIT_MIN_VERSION)
+
+    #
+    # Configuration
+    if not os.path.exists(args.config_file):
+        logging.error(
+            f"Configuration file not found! Default location: '{args.config_file}', override using --config-file.")
+        sys.exit(_EXIT_NO_CONFIG)
+
+    config = configparser.ConfigParser()
+    config.read(args.config_file)
+    sane_config = True
+    for key in config.sections():
+        try:
+            config_entries.append(Entry(key, config[key]))
+        except Exception as err:
+            logging.error(err)
+            sane_config = False
+
+    if not sane_config:
+        logging.error("Invalid configuration file!")
+        sys.exit(_EXIT_INVALID_CONFIG)
+
+    exit_code = run(args.profile)
+    if exit_code == 0:
+        logging.info("backup-rclone finished!")
+    else:
+        logging.warning("backup-rclone finished with errors!")
+    sys.exit(exit_code)
+
+
+if __name__ == "__main__":
+    main()

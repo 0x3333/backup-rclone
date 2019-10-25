@@ -1,5 +1,0 @@
-- /etc/mtab
-+ /root/**
-+ /boot/**
-+ /etc/**
-- *
