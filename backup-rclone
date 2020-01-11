@@ -74,7 +74,7 @@ def setup_logging(log_file: str, verbosity: int):
     verbosity = max(0, min(verbosity, 3))
 
     # Set the log level based on the verbosity
-    log_level: int = max(10, 40 - (verbosity * 10))
+    log_level = max(10, 40 - (verbosity * 10))
 
     formatter = logging.Formatter("[ %(levelname)s ] %(message)s")
     formatterFile = logging.Formatter(
@@ -117,37 +117,37 @@ class Entry:
         # Validate Config
         if not self.action:
             raise Exception(
-                f"Entry '{self.name}' has no 'action' value.")
+                "Entry '%s' has no 'action' value." % self.name)
         if self.action not in [CFG_ACTION_SYNC, CFG_ACTION_COPY]:
             raise Exception(
-                f"Entry '{self.name}' has a invalid 'action' value('{self.action}').")
+                "Entry '%s' has a invalid 'action' value('%s')." % (self.name, self.action))
 
         # Source validation
         if not self.source_path:
             raise Exception(
-                f"Entry '{self.name}' is missing 'source_path'.")
+                "Entry '%s' is missing 'source_path'." % self.name)
         elif (not self.source_path.startswith("/")) or self.source_path.startswith("./") or (not self.source and not os.path.exists(self.source_path)):
             raise Exception(
-                f"Entry '{self.name}' has a 'source_path' is invalid or it doesn't exists locally.")
+                "Entry '%s' has a 'source_path' is invalid or it doesn't exists locally." % self.name)
 
         # Destination validation
         if not self.destination_path:
             raise Exception(
-                f"Entry '{self.name}' is missing 'destination_path'.")
+                "Entry '%s' is missing 'destination_path'." % self.name)
         elif (not self.destination_path.startswith("/")) or self.destination_path.startswith("./") or (not self.destination and not os.path.exists(self.destination_path)):
             raise Exception(
-                f"Entry '{self.name}' has a 'destination_path' is invalid or it doesn't exists locally.")
+                "Entry '%s' has a 'destination_path' is invalid or it doesn't exists locally." % self.name)
 
         if self.filter:
             for line in self.filter.splitlines():
                 if not line.startswith("+") and not line.startswith("-"):
                     raise Exception(
-                        f"Entry '{self.name}' has a invalid 'filter' value.")
+                        "Entry '%s' has a invalid 'filter' value." % self.name)
 
     def __repr__(self):
-        return f"<Entry name={self.name}, action={self.action}, source={self.source}, source_path={self.source_path}," \
-            f"destination={self.destination}, destination_path={self.destination_path}, " \
-            f"disable_fast_list={self.disable_fast_list}, extra_options={self.extra_options}, filter={self.filter}>"
+        return "<Entry name=%s, action=%s, source=%s, source_path=%s, destination=%s, destination_path=%s, " \
+            "disable_fast_list=%s, extra_options=%s, filter=%s>" % (self.name, self.action, self.source, self.source_path, self.destination, self.destination_path,
+            self.disable_fast_list, self.extra_options, self.filter)
 
 #
 # Backup Logic
@@ -171,7 +171,7 @@ def run(profile: str) -> int:
     for entry in config_entries:
         if profile == entry.name or not profile:
             run = True
-            logging.info(f"Running profile {profile}")
+            logging.info("Running profile %s" % profile)
 
             args = [RCLONE_EXECUTABLE, entry.action, *entry.extra_options]
             for fltr in entry.filter.splitlines():
@@ -184,13 +184,13 @@ def run(profile: str) -> int:
 
             # Set Source
             if entry.source:
-                args.append(f"{entry.source}:{entry.source_path}")
+                args.append("%s:%s" % (entry.source, entry.source_path))
             else:
                 args.append(entry.source_path)
 
             # Set Destination
             if entry.destination:
-                args.append(f"{entry.destination}:{entry.destination_path}")
+                args.append("%s:%s" % (entry.destination, entry.destination_path))
             else:
                 args.append(entry.destination_path)
 
@@ -222,7 +222,7 @@ def run_command(cmd: list) -> Tuple[int, str, str]:
         Command to be run. A list with the command, and its arguments.
     """
     logging.debug("%s", " ".join(
-        [f"'{x}'" if " " in x else x for x in cmd]))
+        ["'%s'" % x if " " in x else x for x in cmd]))
 
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
@@ -234,11 +234,11 @@ def run_command(cmd: list) -> Tuple[int, str, str]:
     while stdout_line or stderr_line:
         if stdout_line:
             logging.debug(
-                f"stdout: {stdout_line.rstrip(os.linesep)}")
+                "stdout: %s" % stdout_line.rstrip(os.linesep))
             stdout += stdout_line
         if stderr_line:
             logging.error(
-                f"stderr: {stderr_line.rstrip(os.linesep)}")
+                "stderr: %s" % stderr_line.rstrip(os.linesep))
             stderr += stderr_line
         stdout_line = proc.stdout.readline()
         stderr_line = proc.stderr.readline()
@@ -254,7 +254,7 @@ def run_command(cmd: list) -> Tuple[int, str, str]:
 #
 
 
-config_entries: List[Entry] = []
+config_entries = []
 
 
 def main():
@@ -280,18 +280,18 @@ def main():
     exitcode, stdout, stderr = run_command(
         [RCLONE_EXECUTABLE, RCLONE_ARG_VERSION])
     if exitcode != 0:
-        logging.error(f"Could not determine Rclone version!")
+        logging.error("Could not determine Rclone version!")
         sys.exit(_EXIT_MISSING_RCLONE)
     line = stdout.split('\n', 1)[0]
     if not ("rclone v" in line and line.replace("rclone v", "") >= RCLONE_MIN_VERSION):
-        logging.error(f"Rclone minimum version is {RCLONE_MIN_VERSION}")
+        logging.error("Rclone minimum version is %s" % RCLONE_MIN_VERSION)
         sys.exit(_EXIT_MIN_VERSION)
 
     #
     # Configuration
     if not os.path.exists(args.config_file):
         logging.error(
-            f"Configuration file not found! Default location: '{args.config_file}', override using --config-file.")
+            "Configuration file not found! Default location: '%s', override using --config-file." % args.config_file)
         sys.exit(_EXIT_NO_CONFIG)
 
     config = configparser.ConfigParser()
