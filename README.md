@@ -76,18 +76,26 @@ Filters starts with `-` or `+`, `-` will exclude the pattern from the list, `+` 
 
 ### Examples
 
+See some other examples in `examples` folder.
+
+All possible options demonstrated:
+
 ```ini
 [profile-name-b2]
+# *Will* delete from the destination folder
 action = sync
+# If local folder, `source` is not necessary
 source_path = /Users/myuser
+# `b2-bucket-name` is the rclone remote name
 destination = b2-bucket-name
 destination_path = /backups/mymachine/myuser
+# Will enable fast_list, which in B2 case, will reduce API usage
 disable_fast_list = false
 # This script(/usr/bin/my_script) will be executed before this profile with argument mount
 pre_exec = /usr/bin/my_script mount
 # This script(/usr/bin/my_script) will be executed before this profile with argument umount
 post_exec = /usr/bin/my_script umount
-extra_options = --tpslimit 4 --transfers 4 --copy-links --delete-excluded --b2-hard-delete
+extra_options = --tpslimit 4 --transfers 4 --copy-links --delete-excluded
 filter =    - Thumbs.db
             - .DS_Store
             - ._*
@@ -96,11 +104,15 @@ filter =    - Thumbs.db
             + /**
 
 [profile-name-2]
+# Will *not* delete from the destination folder
 action = copy
+# If local folder, `source` is not necessary
 source_path = /root
-destination = onedrive-x
+# `onedrive-backup` is the rclone remote name
+destination = onedrive-backup
 destination_path = /
-extra_options = --verbose
+# Will disable stats and copy links as if they were files
+extra_options = --stats 0 --copy-links
 ```
 
 # License
