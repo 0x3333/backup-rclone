@@ -103,7 +103,7 @@ filter =    - Thumbs.db
             - /.npm/**
             + /**
 
-[profile-name-2]
+[profile-name-onedrive]
 # Will *not* delete from the destination folder
 action = copy
 # If local folder, `source` is not necessary
