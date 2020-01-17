@@ -1,6 +1,6 @@
 # backup-rclone
 
-This is a python script to manage profiles for [rclone](https://rclone.org/).
+This is a python script to manage profiles for [rclone](https://rclone.org/). _Minimum Python version: 3.5._
 
 You can specify all settings, source, destination for a given profile. It is possible to run a specific profile or all profiles at once.
 
@@ -10,6 +10,7 @@ The `source`/`destination` remotes must already exists on rclone config. Use `rc
 
 ```
 usage: backup-rclone [-h] [-v] [-c CONFIG_FILE] [-l LOG_FILE] [-p PROFILE]
+                     [-e GLOBAL_PRE_EXEC] [-o GLOBAL_POST_EXEC]
 
 Create Rclone backups
 
@@ -22,10 +23,16 @@ optional arguments:
   -l LOG_FILE, --log-file LOG_FILE
                         Log file (default: /var/log/backup-rclone.log)
   -p PROFILE, --profile PROFILE
-                        Profile to run (default: None)
+                        Profile to run. Can be specified multiple times to run
+                        multiple profiles. If not provided, all profiles will
+                        be run (default: None)
+  -e GLOBAL_PRE_EXEC, --global-pre-exec GLOBAL_PRE_EXEC
+                        Command to be executed before the profile is run
+                        (default: None)
+  -o GLOBAL_POST_EXEC, --global-post-exec GLOBAL_POST_EXEC
+                        Command to be executed after the profile is run
+                        (default: None)
 ```
-
-***Note: If a profile is not provided, all profiles will be run.***
 
 ## Profiles
 
@@ -42,6 +49,8 @@ Profiles are configured using `/etc/backup-rclone.conf` file or provide a file u
 * `disable_fast_list`: See Fast List below.
 * `extra_options`: Provide others flags to `rclone`.
 * `filter`: See Filters below.
+* `pre_exec`: Command to be executed before the profile is run. Do not confuse with the `--global-pre-exec` which will be executed independently of the profiles.
+* `post_exec`: Command to be executed after the profile is run. Do not confuse with the `--global-post-exec` which will be executed independently of the profiles.
 
 ### Fast List
 
@@ -74,6 +83,10 @@ source_path = /Users/myuser
 destination = b2-bucket-name
 destination_path = /backups/mymachine/myuser
 disable_fast_list = false
+# This script(/usr/bin/my_script) will be executed before this profile with argument mount
+pre_exec = /usr/bin/my_script mount
+# This script(/usr/bin/my_script) will be executed before this profile with argument umount
+post_exec = /usr/bin/my_script umount
 extra_options = --tpslimit 4 --transfers 4 --copy-links --delete-excluded --b2-hard-delete
 filter =    - Thumbs.db
             - .DS_Store

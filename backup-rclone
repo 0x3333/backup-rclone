@@ -113,6 +113,8 @@ class Entry:
         extra_options = entry.get("extra_options", None)
         self.extra_options = extra_options.split(" ") if extra_options else []
         self.filter = entry.get("filter", RCLONE_DEFAULT_FILTER)
+        self.pre_exec = entry.get("pre_exec", None)
+        self.post_exec = entry.get("post_exec", None)
 
         # Validate Config
         if not self.action:
@@ -147,7 +149,7 @@ class Entry:
     def __repr__(self):
         return "<Entry name=%s, action=%s, source=%s, source_path=%s, destination=%s, destination_path=%s, " \
             "disable_fast_list=%s, extra_options=%s, filter=%s>" % (self.name, self.action, self.source, self.source_path, self.destination, self.destination_path,
-            self.disable_fast_list, self.extra_options, self.filter)
+                                                                    self.disable_fast_list, self.extra_options, self.filter)
 
 #
 # Backup Logic
@@ -155,9 +157,9 @@ class Entry:
 
 
 def requires_fast_list(entry: Entry) -> bool:
-    exitcode, stdout, stderr = run_command(
+    exit_code, stdout, _ = run_command(
         [RCLONE_EXECUTABLE, *RCLONE_ARG_LISTREMOTES])
-    if exitcode == 0:
+    if exit_code == 0:
         for line in stdout.splitlines():
             tokens = [x.strip() for x in line.split(":")]
             if entry.destination == tokens[0] or entry.source == tokens[0]:
@@ -165,68 +167,94 @@ def requires_fast_list(entry: Entry) -> bool:
     return False
 
 
-def run(profile: str) -> int:
-    run = False
+def run(profiles: list) -> int:
+    if len(config_entries) == 0:
+        logging.error("No profiles specified on the configuration file!")
+        return _EXIT_NO_PROFILES
+
+    # Check if all provided profiles exists, if provided
+    if len(profiles) > 0:
+        for profile in profiles:
+            found = False
+            for entry in config_entries:
+                if profile == entry.name:
+                    found = True
+            if not found:
+                logging.error("Profile '%s' not found!" % profile)
+                return _EXIT_PROFILE_NOT_FOUND
+
     exit_code = _EXIT_OK
-    for entry in config_entries:
-        if profile == entry.name or not profile:
-            run = True
-            logging.info("Running profile %s" % profile)
+    for profile in profiles:
+        for entry in config_entries:
+            if profile == entry.name or not profile:
+                # pre_exec execution
+                if entry.pre_exec:
+                    exit_code, _, _ = run_command(entry.pre_exec)
+                    if exit_code != 0:
+                        logging.error("profile pre_exec returned %s." % exit_code)
+                        exit_code = _EXIT_FINISHED_WITH_ERRORS
+                        break # Go to the next profile, if any
 
-            args = [RCLONE_EXECUTABLE, entry.action, *entry.extra_options]
-            for fltr in entry.filter.splitlines():
-                args.append(RCLONE_ARG_FILTER)
-                args.append(fltr)
+                logging.info("Running profile %s" % profile)
 
-            # Check if the remote support Fast List
-            if not entry.disable_fast_list and requires_fast_list(entry):
-                args.append(RCLONE_ARG_FAST_LIST)
+                args = [RCLONE_EXECUTABLE, entry.action, *entry.extra_options]
+                for fltr in entry.filter.splitlines():
+                    args.append(RCLONE_ARG_FILTER)
+                    args.append(fltr)
 
-            # Set Source
-            if entry.source:
-                args.append("%s:%s" % (entry.source, entry.source_path))
-            else:
-                args.append(entry.source_path)
+                # Check if the remote support Fast List
+                if not entry.disable_fast_list and requires_fast_list(entry):
+                    args.append(RCLONE_ARG_FAST_LIST)
+                # Set Source
+                if entry.source:
+                    args.append("%s:%s" % (entry.source, entry.source_path))
+                else:
+                    args.append(entry.source_path)
+                # Set Destination
+                if entry.destination:
+                    args.append("%s:%s" %
+                                (entry.destination, entry.destination_path))
+                else:
+                    args.append(entry.destination_path)
 
-            # Set Destination
-            if entry.destination:
-                args.append("%s:%s" % (entry.destination, entry.destination_path))
-            else:
-                args.append(entry.destination_path)
+                if run_command(args)[0] != 0:
+                    exit_code = _EXIT_FINISHED_WITH_ERRORS
 
-            if run_command(args)[0] != 0:
-                exit_code = _EXIT_FINISHED_WITH_ERRORS
+                # post_exec execution
+                if entry.post_exec:
+                    exit_code, _, _ = run_command(entry.post_exec)
+                    if exit_code != 0:
+                        logging.error("profile post_exec returned %s." % exit_code)
+                        exit_code = _EXIT_FINISHED_WITH_ERRORS
+                        break # Go to the next profile, if any
 
-    if not run:
-        if profile:
-            logging.error("Profile not found!")
-            return _EXIT_PROFILE_NOT_FOUND
+                break # Go to the next profile, if any
 
-        else:
-            logging.error("No profiles specified!")
-            return _EXIT_NO_PROFILES
     return exit_code
-
 
 #
 # Helper
 #
 
 
-def run_command(cmd: list) -> Tuple[int, str, str]:
+def run_command(cmd) -> Tuple[int, str, str]:
     """Run a command and return the exit code, stdout and stderr.
 
     Parameters
     ----------
-    cmd: list
-        Command to be run. A list with the command, and its arguments.
+    cmd: list[str] or str
+        Command to be run. A list with the command, and its arguments or a string with command and its arguments.
     """
-    logging.debug("%s", " ".join(
-        ["'%s'" % x if " " in x else x for x in cmd]))
+    shell = not isinstance(cmd, list)
+    if not shell:
+        logging.debug("%s", " ".join(
+            ["'%s'" % x if " " in x else x for x in cmd]))
+    else:
+        logging.debug(cmd)
 
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
-                            universal_newlines=True)
+                            universal_newlines=True, shell=shell)
     stdout = ""
     stderr = ""
     stdout_line = proc.stdout.readline()
@@ -268,7 +296,12 @@ def main():
     parser.add_argument("-c", "--config-file",
                         help="Configuration file", default=_CFG_FILE)
     parser.add_argument("-l", "--log-file", help="Log file", default=_LOG_FILE)
-    parser.add_argument("-p", "--profile", help="Profile to run")
+    parser.add_argument("-p", "--profile", action="append",
+                        help="Profile to run. Can be specified multiple times to run multiple profiles. If not provided, all profiles will be run")
+    parser.add_argument("-e", "--global-pre-exec",
+                        help="Command to be executed before the profile is run")
+    parser.add_argument("-o", "--global-post-exec",
+                        help="Command to be executed after the profile is run")
     args = parser.parse_args()
 
     #
@@ -277,9 +310,9 @@ def main():
 
     #
     # Check Rclone version
-    exitcode, stdout, stderr = run_command(
+    exit_code, stdout, _ = run_command(
         [RCLONE_EXECUTABLE, RCLONE_ARG_VERSION])
-    if exitcode != 0:
+    if exit_code != 0:
         logging.error("Could not determine Rclone version!")
         sys.exit(_EXIT_MISSING_RCLONE)
     line = stdout.split('\n', 1)[0]
@@ -308,11 +341,24 @@ def main():
         logging.error("Invalid configuration file!")
         sys.exit(_EXIT_INVALID_CONFIG)
 
+    if args.global_pre_exec:
+        exit_code, _, _ = run_command(args.global_pre_exec)
+        if exit_code != 0:
+            logging.error("global_pre_exec returned %s. Will not run the profiles." % exit_code)
+            sys.exit(_EXIT_FINISHED_WITH_ERRORS)
+
     exit_code = run(args.profile)
     if exit_code == 0:
         logging.info("backup-rclone finished!")
     else:
         logging.warning("backup-rclone finished with errors!")
+
+    if args.global_post_exec:
+        exit_code, _, _ = run_command(args.global_post_exec)
+        if exit_code != 0:
+            logging.error("global_post_exec returned %s." % exit_code)
+            sys.exit(_EXIT_FINISHED_WITH_ERRORS)
+
     sys.exit(exit_code)
 
 
