@@ -1,6 +1,8 @@
 # backup-rclone
 
-This is a python script to manage profiles for [rclone](https://rclone.org/). _Minimum Python version: 3.5._
+This is a python script to manage profiles for [rclone](https://rclone.org/).
+
+_Simple, there is no dependencies, except for Python 3.5._
 
 You can specify all settings, source, destination for a given profile. It is possible to run a specific profile or all profiles at once.
 
@@ -9,8 +11,8 @@ The `source`/`destination` remotes must already exists on rclone config. Use `rc
 ## Usage
 
 ```
-usage: backup-rclone [-h] [-v] [-c CONFIG_FILE] [-l LOG_FILE] [-p PROFILE]
-                     [-e GLOBAL_PRE_EXEC] [-o GLOBAL_POST_EXEC]
+usage: backup-rclone [-h] [-v] [-c CONFIG_FILE] [-l LOG_FILE] [-s] [--check]
+                     [-p PROFILES] [-e GLOBAL_PRE_EXEC] [-o GLOBAL_POST_EXEC]
 
 Create Rclone backups
 
@@ -22,7 +24,10 @@ optional arguments:
                         Configuration file (default: /etc/backup-rclone.conf)
   -l LOG_FILE, --log-file LOG_FILE
                         Log file (default: /var/log/backup-rclone.log)
-  -p PROFILE, --profile PROFILE
+  -s, --show-profiles   Show profiles defined in the config file. (default:
+                        False)
+  --check               Check the configuration file. (default: False)
+  -p PROFILES, --profile PROFILES
                         Profile to run. Can be specified multiple times to run
                         multiple profiles. If not provided, all profiles will
                         be run (default: None)

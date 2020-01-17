@@ -191,9 +191,10 @@ def run(profiles: list) -> int:
                 if entry.pre_exec:
                     exit_code, _, _ = run_command(entry.pre_exec)
                     if exit_code != 0:
-                        logging.error("profile pre_exec returned %s." % exit_code)
+                        logging.error(
+                            "profile pre_exec returned %s." % exit_code)
                         exit_code = _EXIT_FINISHED_WITH_ERRORS
-                        break # Go to the next profile, if any
+                        break  # Go to the next profile, if any
 
                 logging.info("Running profile %s" % profile)
 
@@ -224,11 +225,12 @@ def run(profiles: list) -> int:
                 if entry.post_exec:
                     exit_code, _, _ = run_command(entry.post_exec)
                     if exit_code != 0:
-                        logging.error("profile post_exec returned %s." % exit_code)
+                        logging.error(
+                            "profile post_exec returned %s." % exit_code)
                         exit_code = _EXIT_FINISHED_WITH_ERRORS
-                        break # Go to the next profile, if any
+                        break  # Go to the next profile, if any
 
-                break # Go to the next profile, if any
+                break  # Go to the next profile, if any
 
     return exit_code
 
@@ -291,34 +293,33 @@ def main():
     # Arguments
     parser = argparse.ArgumentParser(
         description="Create Rclone backups", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-v", "--verbose", help="Verbose, can be issued multiple times to increase verbosity(Max 3 times)", dest="verbosity",
-                        action="count", default=0)
-    parser.add_argument("-c", "--config-file",
-                        help="Configuration file", default=_CFG_FILE)
+    parser.add_argument("-v", "--verbose", dest="verbosity", action="count", default=0,
+                        help="Verbose, can be issued multiple times to increase verbosity(Max 3 times)")
+
+    parser.add_argument("-c", "--config-file", default=_CFG_FILE,
+                        help="Configuration file")
+
     parser.add_argument("-l", "--log-file", help="Log file", default=_LOG_FILE)
-    parser.add_argument("-p", "--profile", action="append",
+
+    parser.add_argument("-s", "--show-profiles", dest="show", action="store_true",
+                        help="Show profiles defined in the config file.")
+
+    parser.add_argument("--check", dest="check", action="store_true",
+                        help="Check the configuration file.")
+
+    parser.add_argument("-p", "--profile", action="append", dest="profiles",
                         help="Profile to run. Can be specified multiple times to run multiple profiles. If not provided, all profiles will be run")
+
     parser.add_argument("-e", "--global-pre-exec",
                         help="Command to be executed before the profile is run")
     parser.add_argument("-o", "--global-post-exec",
                         help="Command to be executed after the profile is run")
+
     args = parser.parse_args()
 
     #
     # Logging
     setup_logging(args.log_file, args.verbosity)
-
-    #
-    # Check Rclone version
-    exit_code, stdout, _ = run_command(
-        [RCLONE_EXECUTABLE, RCLONE_ARG_VERSION])
-    if exit_code != 0:
-        logging.error("Could not determine Rclone version!")
-        sys.exit(_EXIT_MISSING_RCLONE)
-    line = stdout.split('\n', 1)[0]
-    if not ("rclone v" in line and line.replace("rclone v", "") >= RCLONE_MIN_VERSION):
-        logging.error("Rclone minimum version is %s" % RCLONE_MIN_VERSION)
-        sys.exit(_EXIT_MIN_VERSION)
 
     #
     # Configuration
@@ -341,18 +342,47 @@ def main():
         logging.error("Invalid configuration file!")
         sys.exit(_EXIT_INVALID_CONFIG)
 
+    if args.check:
+        print("Configuration file is OK!")
+        sys.exit(_EXIT_OK)
+
+    if args.show:
+        print("Profiles:")
+        for entry in config_entries:
+            print("\t%s (Source: %s / Destination: %s)" %
+                  (entry.name, entry.source, entry.destination))
+        sys.exit(_EXIT_OK)
+
+    #
+    # Check Rclone version
+    exit_code, stdout, _ = run_command([RCLONE_EXECUTABLE, RCLONE_ARG_VERSION])
+    if exit_code != 0:
+        logging.error("Could not determine Rclone version!")
+        sys.exit(_EXIT_MISSING_RCLONE)
+    line = stdout.split('\n', 1)[0]
+    if not ("rclone v" in line and line.replace("rclone v", "") >= RCLONE_MIN_VERSION):
+        logging.error("Rclone minimum version is %s" % RCLONE_MIN_VERSION)
+        sys.exit(_EXIT_MIN_VERSION)
+
+    #
+    # Execute Global Pre-Exec command
     if args.global_pre_exec:
         exit_code, _, _ = run_command(args.global_pre_exec)
         if exit_code != 0:
-            logging.error("global_pre_exec returned %s. Will not run the profiles." % exit_code)
+            logging.error(
+                "global_pre_exec returned %s. Will not run the profiles." % exit_code)
             sys.exit(_EXIT_FINISHED_WITH_ERRORS)
 
-    exit_code = run(args.profile)
+    #
+    # Execute Profiles
+    exit_code = run(args.profiles)
     if exit_code == 0:
         logging.info("backup-rclone finished!")
     else:
         logging.warning("backup-rclone finished with errors!")
 
+    #
+    # Execute Global Post-Exec command
     if args.global_post_exec:
         exit_code, _, _ = run_command(args.global_post_exec)
         if exit_code != 0:
