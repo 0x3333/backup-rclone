@@ -117,4 +117,6 @@ extra_options = --stats 0 --copy-links
 
 # License
 
-This is free software under the terms of MIT the license (check the LICENSE file included in this package).
+`backup-rclone` is primarily distributed under the terms of both the MIT license and the Apache License (Version 2.0).
+
+See LICENSE-APACHE and LICENSE-MIT for details.
