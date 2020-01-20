@@ -347,10 +347,22 @@ def main():
         sys.exit(_EXIT_OK)
 
     if args.show:
-        print("Profiles:")
+        print("Profiles:\n=========")
+        max_name = max([len(entry.name) for entry in config_entries])
+        max_source = max([len(entry.source if entry.source else "") for entry in config_entries])
+        max_source_path = max([len(entry.source_path) for entry in config_entries])
+        max_destination = max([len(entry.destination if entry.destination else "") for entry in config_entries])
+        max_destination_path = max([len(entry.destination_path) for entry in config_entries])
+
         for entry in config_entries:
-            print("\t%s (Source: %s / Destination: %s)" %
-                  (entry.name, entry.source, entry.destination))
+            name = entry.name.ljust(max_name)
+            source = (entry.source if entry.source else "").rjust(max_source)
+            source_path = entry.source_path.ljust(max_source_path)
+            destination = (entry.destination if entry.destination else "").rjust(max_destination)
+            destination_path = entry.destination_path.ljust(max_destination_path)
+            print("     %s - %s:%s => %s:%s" %
+                  (name, source, source_path, destination, destination_path))
+
         sys.exit(_EXIT_OK)
 
     #
