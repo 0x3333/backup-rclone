@@ -2,7 +2,7 @@
 
 This is a python script to manage profiles for [`rclone`](https://rclone.org/).
 
-_Simple, no dependencies, plaing Python 3.5._
+_Simple, no dependencies, plain Python 3.5._
 
 You can specify all settings for a `rclone` profile, source, destination, pre/post executable commands, extra flags, etc. It is possible to run a specific profile or all profiles at once(When no profile is specified).
 
