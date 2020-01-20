@@ -8,6 +8,17 @@ You can specify all settings for a `rclone` profile, source, destination, pre/po
 
 The `source`/`destination` are remotes in `rclone` configuration, they must already exist. Use `rclone config` to create/edit.
 
+## Table of Contents
+
+* [Usage](#usage)
+* [Profiles](#profiles)
+    * [Options](#options)
+    * [Fast List](#fast-list)
+    * [Filters](#filters)
+* [Installation](#installation)
+* [Examples](#examples)
+* [License](#license)
+
 ## Usage
 
 ```
@@ -79,7 +90,7 @@ Filters are exactly the same as `rclone` specification, see [Filtering](https://
 
 Filters starts with `-` or `+`, `-` will exclude the pattern from the list, `+` will add. If `filter` is not provided, the default will be used, `+ /**`, which will include all files.
 
-### Installation
+## Installation
 
 Currently, there is no release or version number, so the easiest installation procedure is to download the script and make it executable:
 
@@ -96,7 +107,7 @@ I suggest using [Chronic](https://github.com/docwhat/chronic) when using `cron`,
 0 0 * * * chronic /usr/bin/backup-rclone
 ```
 
-### Examples
+## Examples
 
 See some other examples in `examples` folder.
 
@@ -137,7 +148,7 @@ destination_path = /
 extra_options = --stats 0 --copy-links
 ```
 
-# License
+## License
 
 `backup-rclone` is primarily distributed under the terms of both the MIT license and the Apache License (Version 2.0).
 
