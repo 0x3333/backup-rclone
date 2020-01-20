@@ -1,12 +1,12 @@
 # backup-rclone
 
-This is a python script to manage profiles for [rclone](https://rclone.org/).
+This is a python script to manage profiles for [`rclone`](https://rclone.org/).
 
-_Simple, there is no dependencies, except for Python 3.5._
+_Simple, no dependencies, plaing Python 3.5._
 
-You can specify all settings, source, destination for a given profile. It is possible to run a specific profile or all profiles at once.
+You can specify all settings for a `rclone` profile, source, destination, pre/post executable commands, extra flags, etc. It is possible to run a specific profile or all profiles at once(When no profile is specified).
 
-The `source`/`destination` remotes must already exists on rclone config. Use `rclone config` to create/edit.
+The `source`/`destination` are remotes in `rclone` configuration, they must already exist. Use `rclone config` to create/edit.
 
 ## Usage
 
@@ -51,7 +51,7 @@ Profiles are configured using `/etc/backup-rclone.conf` file or provide a file u
 * `source_path`: The source folder in the remote or local.
 * `destination`: The remote to be used as destination, empty if local folder.
 * `destination_path`: The destination folder in the remote or local.
-* `disable_fast_list`: See Fast List below.
+* `disable_fast_list`: Disable the `--fast-list` flag in some remote types. See Fast List below for more info.
 * `extra_options`: Provide others flags to `rclone`.
 * `filter`: See Filters below.
 * `pre_exec`: Command to be executed before the profile is run. Do not confuse with the `--global-pre-exec` which will be executed independently of the profiles.
@@ -59,19 +59,19 @@ Profiles are configured using `/etc/backup-rclone.conf` file or provide a file u
 
 ### Fast List
 
-In some remotes, the parameter --fast-list is advisable, to reduce costs, backup-rclone adds it automatically, this option disable this behavour in those remotes.
+In some remotes, the parameter `--fast-list` is advisable, to reduce costs, `backup-rclone` adds it automatically. The option `disable_fast_list` will override this behaviour, not adding this flag in those remotes.
 
-Remotes affected by this options:
+Remotes that have `--fast-list` added automatically:
 
-* s3
-* b2
-* google cloud storage
-* drive
-* hubic
-* jottacloud
-* azureblob
-* swift
-* qingstor
+* `s3`
+* `b2`
+* `google cloud storage`
+* `drive`
+* `hubic`
+* `jottacloud`
+* `azureblob`
+* `swift`
+* `qingstor`
 
 ### Filters
 
