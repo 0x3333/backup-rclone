@@ -182,6 +182,8 @@ def run(profiles: list) -> int:
             if not found:
                 logging.error("Profile '%s' not found!" % profile)
                 return _EXIT_PROFILE_NOT_FOUND
+    else:
+        profiles = [entry.name for entry in config_entries]
 
     exit_code = _EXIT_OK
     for profile in profiles:
@@ -307,7 +309,7 @@ def main():
     parser.add_argument("--check", dest="check", action="store_true",
                         help="Check the configuration file.")
 
-    parser.add_argument("-p", "--profile", action="append", dest="profiles",
+    parser.add_argument("-p", "--profile", action="append", dest="profiles", default=[],
                         help="Profile to run. Can be specified multiple times to run multiple profiles. If not provided, all profiles will be run")
 
     parser.add_argument("-e", "--global-pre-exec",
