@@ -79,6 +79,23 @@ Filters are exactly the same as `rclone` specification, see [Filtering](https://
 
 Filters starts with `-` or `+`, `-` will exclude the pattern from the list, `+` will add. If `filter` is not provided, the default will be used, `+ /**`, which will include all files.
 
+### Installation
+
+Currently, there is no release or version number, so the easiest installation procedure is to download the script and make it executable:
+
+```bash
+curl "https://raw.githubusercontent.com/0x3333/backup-rclone/master/backup-rclone" \
+    > /usr/bin/backup-rclone && chmod +x /usr/bin/backup-rclone
+```
+
+The `backup-rclone` executable will be available in the `/usr/bin` folder, and is ready to go.
+
+I suggest using [Chronic](https://github.com/docwhat/chronic) when using `cron`, it will handle the output in case of failure and you will be notified only when an error has ocurred. Something like this:
+
+```
+0 0 * * * chronic /usr/bin/backup-rclone
+```
+
 ### Examples
 
 See some other examples in `examples` folder.
