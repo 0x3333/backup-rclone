@@ -107,6 +107,21 @@ I suggest using [Chronic](https://github.com/docwhat/chronic) when using `cron`,
 0 0 * * * chronic /usr/bin/backup-rclone
 ```
 
+You can even use verbose output, as it will only be sent if an error occurs:
+
+```
+0 0 * * * chronic /usr/bin/backup-rclone -vvv
+```
+
+### Logrotate
+
+It's highly recommended to configure `logrotate` to rotate the log files. A configuration is provided in the repo, `logrotate.conf`, just copy to `/etc/logrotate.d` named `backup-rclone` and you are good to go.
+
+```bash
+curl "https://raw.githubusercontent.com/0x3333/backup-rclone/master/logrotate.conf" \
+    > /etc/logrotate.d/backup-rclone
+```
+
 ## Examples
 
 See some other examples in `examples` folder.
