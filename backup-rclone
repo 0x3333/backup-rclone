@@ -198,7 +198,7 @@ def run(profiles: list) -> int:
                         exit_code = _EXIT_FINISHED_WITH_ERRORS
                         break  # Go to the next profile, if any
 
-                logging.info("Running profile %s" % profile)
+                logging.info("Running profile %s" % entry.name)
 
                 args = [RCLONE_EXECUTABLE, entry.action, *entry.extra_options]
                 for fltr in entry.filter.splitlines():
