@@ -191,10 +191,10 @@ def run(profiles: list) -> int:
             if profile == entry.name or not profile:
                 # pre_exec execution
                 if entry.pre_exec:
-                    exit_code, _, _ = run_command(entry.pre_exec)
-                    if exit_code != 0:
+                    _exit_code, _, _ = run_command(entry.pre_exec)
+                    if _exit_code != 0:
                         logging.error(
-                            "profile pre_exec returned %s." % exit_code)
+                            "profile pre_exec returned %s." % _exit_code)
                         exit_code = _EXIT_FINISHED_WITH_ERRORS
                         break  # Go to the next profile, if any
 
@@ -220,15 +220,16 @@ def run(profiles: list) -> int:
                 else:
                     args.append(entry.destination_path)
 
-                if run_command(args)[0] != 0:
+                _exit_code, _, _ = run_command(args)
+                if _exit_code != 0:
                     exit_code = _EXIT_FINISHED_WITH_ERRORS
 
                 # post_exec execution
                 if entry.post_exec:
-                    exit_code, _, _ = run_command(entry.post_exec)
-                    if exit_code != 0:
+                    _exit_code, _, _ = run_command(entry.post_exec)
+                    if _exit_code != 0:
                         logging.error(
-                            "profile post_exec returned %s." % exit_code)
+                            "profile post_exec returned %s." % _exit_code)
                         exit_code = _EXIT_FINISHED_WITH_ERRORS
                         break  # Go to the next profile, if any
 
