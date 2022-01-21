@@ -18,6 +18,9 @@ from typing import List, Tuple
 # Constants
 #
 
+# Version
+_VERSION = "1.0.0"
+
 # Default Files
 _CFG_FILE = "/etc/backup-rclone.conf"
 _LOG_FILE = "/var/log/backup-rclone.log"
@@ -343,7 +346,7 @@ def main():
     parser.add_argument("--check", dest="check", action="store_true",
                         help="Check the configuration file.")
 
-    parser.add_argument("-p", "--profile", action="append", dest="profiles", default=[],
+    parser.add_argument("-p", "--profile", action="append", dest="profile", default=[],
                         help="Profile to run. Can be specified multiple times to run multiple profiles. \
                             If not provided, all profiles will be run")
 
@@ -351,6 +354,8 @@ def main():
                         help="Command to be executed before the profile is run")
     parser.add_argument("-o", "--global-post-exec",
                         help="Command to be executed after the profile is run")
+
+    parser.add_argument("--version", action="version", version="backup-rclone v%s" % _VERSION)
 
     args = parser.parse_args()
 
@@ -419,12 +424,12 @@ def main():
         _exit_code, _, _ = run_command(args.global_pre_exec)
         if _exit_code != 0:
             logging.error(
-                "global_pre_exec returned %s. Will not run the profiles." % _exit_code)
+                "global_pre_exec returned %s. Will run no profiles." % _exit_code)
             sys.exit(_EXIT_FINISHED_WITH_ERRORS)
 
     #
     # Execute Profiles
-    exit_code = run(args.profiles)
+    exit_code = run(args.profile)
     if exit_code == 0:
         logging.info("backup-rclone finished!")
     else:

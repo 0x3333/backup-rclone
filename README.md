@@ -96,7 +96,7 @@ Currently, there is no release or version number, so the easiest installation pr
 
 ```bash
 curl "https://raw.githubusercontent.com/0x3333/backup-rclone/master/backup-rclone" \
-    > /usr/bin/backup-rclone && chmod +x /usr/bin/backup-rclone
+    > /usr/bin/backup-rclone && chmod +x /usr/bin/backup-rclone && /usr/bin/backup-rclone --version
 ```
 
 The `backup-rclone` executable will be available in the `/usr/bin` folder, and is ready to go.
