@@ -404,8 +404,8 @@ def main():
 
     #
     # Check Rclone version
-    exit_code, stdout, _ = run_command([RCLONE_EXECUTABLE, RCLONE_ARG_VERSION])
-    if exit_code != 0:
+    _exit_code, stdout, _ = run_command([RCLONE_EXECUTABLE, RCLONE_ARG_VERSION])
+    if _exit_code != 0:
         logging.error("Could not determine Rclone version!")
         sys.exit(_EXIT_MISSING_RCLONE)
     line = stdout.split('\n', 1)[0]
@@ -416,10 +416,10 @@ def main():
     #
     # Execute Global Pre-Exec command
     if args.global_pre_exec:
-        exit_code, _, _ = run_command(args.global_pre_exec)
-        if exit_code != 0:
+        _exit_code, _, _ = run_command(args.global_pre_exec)
+        if _exit_code != 0:
             logging.error(
-                "global_pre_exec returned %s. Will not run the profiles." % exit_code)
+                "global_pre_exec returned %s. Will not run the profiles." % _exit_code)
             sys.exit(_EXIT_FINISHED_WITH_ERRORS)
 
     #
@@ -428,14 +428,14 @@ def main():
     if exit_code == 0:
         logging.info("backup-rclone finished!")
     else:
-        logging.warning("backup-rclone finished with errors!")
+        logging.warning("backup-rclone finished with errors, exit code: %s" % exit_code)
 
     #
     # Execute Global Post-Exec command
     if args.global_post_exec:
-        exit_code, _, _ = run_command(args.global_post_exec)
-        if exit_code != 0:
-            logging.error("global_post_exec returned %s." % exit_code)
+        _exit_code, _, _ = run_command(args.global_post_exec)
+        if _exit_code != 0:
+            logging.error("global_post_exec returned %s." % _exit_code)
             sys.exit(_EXIT_FINISHED_WITH_ERRORS)
 
     sys.exit(exit_code)
