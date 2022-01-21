@@ -9,6 +9,9 @@ import logging
 import os
 import subprocess
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
+from queue import Empty, Queue
 from typing import List, Tuple
 
 #
@@ -96,6 +99,35 @@ def setup_logging(log_file: str, verbosity: int):
     logging.basicConfig(level=log_level, handlers=[
                         handlerFile, handlerOut, handlerErr])
 
+
+def enqueue_process_output(file, queue):
+    for line in iter(file.readline, ''):
+        queue.put(line)
+    file.close()
+
+
+def read_process_pipes(p):
+    with ThreadPoolExecutor(2) as pool:
+        q_stdout, q_stderr = Queue(), Queue()
+
+        pool.submit(enqueue_process_output, p.stdout, q_stdout)
+        pool.submit(enqueue_process_output, p.stderr, q_stderr)
+
+        while p.poll() is None or not q_stdout.empty() or not q_stderr.empty():
+            out_line = err_line = ''
+            try:
+                out_line = q_stdout.get_nowait()
+            except Empty:
+                pass
+            try:
+                err_line = q_stderr.get_nowait()
+            except Empty:
+                pass
+
+            time.sleep(0.2)
+
+            yield (out_line, err_line)
+
 #
 # Configuration File
 #
@@ -128,7 +160,8 @@ class Entry:
         if not self.source_path:
             raise Exception(
                 "Entry '%s' is missing 'source_path'." % self.name)
-        elif (not self.source_path.startswith("/")) or self.source_path.startswith("./") or (not self.source and not os.path.exists(self.source_path)):
+        elif (not self.source_path.startswith("/")) or self.source_path.startswith("./") or \
+            (not self.source and not os.path.exists(self.source_path)):
             raise Exception(
                 "Entry '%s' has a 'source_path' is invalid or it doesn't exists locally." % self.name)
 
@@ -136,7 +169,8 @@ class Entry:
         if not self.destination_path:
             raise Exception(
                 "Entry '%s' is missing 'destination_path'." % self.name)
-        elif (not self.destination_path.startswith("/")) or self.destination_path.startswith("./") or (not self.destination and not os.path.exists(self.destination_path)):
+        elif (not self.destination_path.startswith("/")) or self.destination_path.startswith("./") or \
+            (not self.destination and not os.path.exists(self.destination_path)):
             raise Exception(
                 "Entry '%s' has a 'destination_path' is invalid or it doesn't exists locally." % self.name)
 
@@ -148,8 +182,8 @@ class Entry:
 
     def __repr__(self):
         return "<Entry name=%s, action=%s, source=%s, source_path=%s, destination=%s, destination_path=%s, " \
-            "disable_fast_list=%s, extra_options=%s, filter=%s>" % (self.name, self.action, self.source, self.source_path, self.destination, self.destination_path,
-                                                                    self.disable_fast_list, self.extra_options, self.filter)
+            "disable_fast_list=%s, extra_options=%s, filter=%s>" % (self.name, self.action, self.source, self.source_path, \
+                self.destination, self.destination_path, self.disable_fast_list, self.extra_options, self.filter)
 
 #
 # Backup Logic
@@ -167,7 +201,7 @@ def requires_fast_list(entry: Entry) -> bool:
     return False
 
 
-def run(profiles: list) -> int:
+def run(profiles: List) -> int:
     if len(config_entries) == 0:
         logging.error("No profiles specified on the configuration file!")
         return _EXIT_NO_PROFILES
@@ -194,7 +228,7 @@ def run(profiles: list) -> int:
                     _exit_code, _, _ = run_command(entry.pre_exec)
                     if _exit_code != 0:
                         logging.error(
-                            "profile pre_exec returned %s." % _exit_code)
+                            "Profile %s pre_exec returned %s." % (entry.name, _exit_code))
                         exit_code = _EXIT_FINISHED_WITH_ERRORS
                         break  # Go to the next profile, if any
 
@@ -224,12 +258,14 @@ def run(profiles: list) -> int:
                 if _exit_code != 0:
                     exit_code = _EXIT_FINISHED_WITH_ERRORS
 
+                logging.info("Profile %s finished with exit code: %s" % (entry.name, _exit_code))
+
                 # post_exec execution
                 if entry.post_exec:
                     _exit_code, _, _ = run_command(entry.post_exec)
                     if _exit_code != 0:
                         logging.error(
-                            "profile post_exec returned %s." % _exit_code)
+                            "Profile %s post_exec returned %s." % (entry.name, _exit_code))
                         exit_code = _EXIT_FINISHED_WITH_ERRORS
                         break  # Go to the next profile, if any
 
@@ -260,11 +296,10 @@ def run_command(cmd) -> Tuple[int, str, str]:
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
                             universal_newlines=True, shell=shell)
+
     stdout = ""
     stderr = ""
-    stdout_line = proc.stdout.readline()
-    stderr_line = proc.stderr.readline()
-    while stdout_line or stderr_line:
+    for stdout_line, stderr_line in read_process_pipes(proc):
         if stdout_line:
             logging.debug(
                 "stdout: %s" % stdout_line.rstrip(os.linesep))
@@ -273,8 +308,6 @@ def run_command(cmd) -> Tuple[int, str, str]:
             logging.error(
                 "stderr: %s" % stderr_line.rstrip(os.linesep))
             stderr += stderr_line
-        stdout_line = proc.stdout.readline()
-        stderr_line = proc.stderr.readline()
 
     proc.wait()
 
@@ -311,7 +344,8 @@ def main():
                         help="Check the configuration file.")
 
     parser.add_argument("-p", "--profile", action="append", dest="profiles", default=[],
-                        help="Profile to run. Can be specified multiple times to run multiple profiles. If not provided, all profiles will be run")
+                        help="Profile to run. Can be specified multiple times to run multiple profiles. \
+                            If not provided, all profiles will be run")
 
     parser.add_argument("-e", "--global-pre-exec",
                         help="Command to be executed before the profile is run")
