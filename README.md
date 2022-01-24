@@ -22,32 +22,26 @@ The `source`/`destination` are remotes in `rclone` configuration, they must alre
 ## Usage
 
 ```
-usage: backup-rclone [-h] [-v] [-c CONFIG_FILE] [-l LOG_FILE] [-s] [--check]
-                     [-p PROFILES] [-e GLOBAL_PRE_EXEC] [-o GLOBAL_POST_EXEC]
+usage: backup-rclone [-h] [-v] [-c CONFIG_FILE] [-l LOG_FILE] [-s] [--check] [-p PROFILE] [-e GLOBAL_PRE_EXEC] [-o GLOBAL_POST_EXEC] [--version]
 
 Create Rclone backups
 
 optional arguments:
   -h, --help            show this help message and exit
-  -v, --verbose         Verbose, can be issued multiple times to increase
-                        verbosity(Max 3 times) (default: 0)
+  -v, --verbose         Verbose, can be issued multiple times to increase verbosity(Max 3 times) (default: 0)
   -c CONFIG_FILE, --config-file CONFIG_FILE
                         Configuration file (default: /etc/backup-rclone.conf)
   -l LOG_FILE, --log-file LOG_FILE
                         Log file (default: /var/log/backup-rclone.log)
-  -s, --show-profiles   Show profiles defined in the config file. (default:
-                        False)
+  -s, --show-profiles   Show profiles defined in the config file. (default: False)
   --check               Check the configuration file. (default: False)
-  -p PROFILES, --profile PROFILES
-                        Profile to run. Can be specified multiple times to run
-                        multiple profiles. If not provided, all profiles will
-                        be run (default: None)
+  -p PROFILE, --profile PROFILE
+                        Profile to run. Can be specified multiple times to run multiple profiles. If not provided, all profiles will be run (default: [])
   -e GLOBAL_PRE_EXEC, --global-pre-exec GLOBAL_PRE_EXEC
-                        Command to be executed before the profile is run
-                        (default: None)
+                        Command to be executed before the profile is run (default: None)
   -o GLOBAL_POST_EXEC, --global-post-exec GLOBAL_POST_EXEC
-                        Command to be executed after the profile is run
-                        (default: None)
+                        Command to be executed after the profile is run (default: None)
+  --version             show program's version number and exit
 ```
 
 ## Profiles
