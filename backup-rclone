@@ -118,16 +118,16 @@ def read_process_pipes(p):
 
         while p.poll() is None or not q_stdout.empty() or not q_stderr.empty():
             out_line = err_line = ''
+            empty = False
             try:
                 out_line = q_stdout.get_nowait()
             except Empty:
-                pass
+                empty = True
             try:
                 err_line = q_stderr.get_nowait()
             except Empty:
-                pass
-
-            time.sleep(0.2)
+                if empty:
+                    time.sleep(0.2)
 
             yield (out_line, err_line)
 
