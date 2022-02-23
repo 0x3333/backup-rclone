@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from queue import Empty, Queue
 from typing import List, Tuple
 
@@ -19,11 +20,12 @@ from typing import List, Tuple
 #
 
 # Version
-_VERSION = "1.0.1"
+_VERSION = "1.0.2"
 
 # Default Files
 _CFG_FILE = "/etc/backup-rclone.conf"
 _LOG_FILE = "/var/log/backup-rclone.log"
+_PID_FILE = "/var/run/backup-rclone.pid"
 
 # Exit codes
 _EXIT_OK = 0
@@ -33,6 +35,7 @@ _EXIT_NO_CONFIG = 3
 _EXIT_INVALID_CONFIG = 4
 _EXIT_NO_PROFILES = 5
 _EXIT_PROFILE_NOT_FOUND = 6
+_EXIT_ALREADY_RUNNING = 6
 _EXIT_FINISHED_WITH_ERRORS = 255
 
 # Configuration
@@ -56,6 +59,36 @@ RCLONE_REMOTES_FAST_LIST = ["s3",
                             "azureblob",
                             "swift",
                             "qingstor"]
+
+
+#
+# Locking
+#
+
+
+class AlreadyRunningInstanceError(Exception):
+    pass
+
+
+class SingleInstanceContext:
+    """Context manager for tasks"""
+
+    def __init__(self, pid_file):
+        self.pid_file = pid_file
+
+        if os.path.exists(pid_file):
+            raise AlreadyRunningInstanceError("Instance already running")
+
+    def __enter__(self):
+        self.fl = open(self.pid_file, "w")
+        self.fl.write(str(os.getpid()))
+        self.fl.flush()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.fl.close()
+        os.unlink(self.pid_file)
+
 
 #
 # Logging
@@ -340,6 +373,8 @@ def main():
 
     parser.add_argument("-l", "--log-file", help="Log file", default=_LOG_FILE)
 
+    parser.add_argument("--pid-file", help="PID file", default=_PID_FILE)
+
     parser.add_argument("-s", "--show-profiles", dest="show", action="store_true",
                         help="Show profiles defined in the config file.")
 
@@ -418,32 +453,37 @@ def main():
         logging.error("Rclone minimum version is %s" % RCLONE_MIN_VERSION)
         sys.exit(_EXIT_MIN_VERSION)
 
-    #
-    # Execute Global Pre-Exec command
-    if args.global_pre_exec:
-        _exit_code, _, _ = run_command(args.global_pre_exec)
-        if _exit_code != 0:
-            logging.error(
-                "global_pre_exec returned %s. Will run no profiles." % _exit_code)
-            sys.exit(_EXIT_FINISHED_WITH_ERRORS)
+    try:
+        with SingleInstanceContext(args.pid_file):
+            #
+            # Execute Global Pre-Exec command
+            if args.global_pre_exec:
+                _exit_code, _, _ = run_command(args.global_pre_exec)
+                if _exit_code != 0:
+                    logging.error(
+                        "global_pre_exec returned %s. Will run no profiles." % _exit_code)
+                    sys.exit(_EXIT_FINISHED_WITH_ERRORS)
 
-    #
-    # Execute Profiles
-    exit_code = run(args.profile)
-    if exit_code == 0:
-        logging.info("backup-rclone finished!")
-    else:
-        logging.warning("backup-rclone finished with errors, exit code: %s" % exit_code)
+            #
+            # Execute Profiles
+            exit_code = run(args.profile)
+            if exit_code == 0:
+                logging.info("backup-rclone finished!")
+            else:
+                logging.warning("backup-rclone finished with errors, exit code: %s" % exit_code)
 
-    #
-    # Execute Global Post-Exec command
-    if args.global_post_exec:
-        _exit_code, _, _ = run_command(args.global_post_exec)
-        if _exit_code != 0:
-            logging.error("global_post_exec returned %s." % _exit_code)
-            sys.exit(_EXIT_FINISHED_WITH_ERRORS)
+            #
+            # Execute Global Post-Exec command
+            if args.global_post_exec:
+                _exit_code, _, _ = run_command(args.global_post_exec)
+                if _exit_code != 0:
+                    logging.error("global_post_exec returned %s." % _exit_code)
+                    sys.exit(_EXIT_FINISHED_WITH_ERRORS)
 
-    sys.exit(exit_code)
+            sys.exit(exit_code)
+    except AlreadyRunningInstanceError as err:
+        logging.error("backup-rclone already running!")
+        sys.exit(_EXIT_ALREADY_RUNNING)
 
 
 if __name__ == "__main__":
