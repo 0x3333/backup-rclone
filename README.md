@@ -107,6 +107,8 @@ You can even use verbose output, as it will only be sent if an error occurs:
 0 0 * * * chronic /usr/bin/backup-rclone -vvv
 ```
 
+`backup-rclone` will create a PID file, so no overlapping instances will run, an error will be issued.
+
 ### Logrotate
 
 It's highly recommended to configure `logrotate` to rotate the log files. A configuration is provided in the repo, `logrotate.conf`, just copy to `/etc/logrotate.d` named `backup-rclone` and you are good to go.
