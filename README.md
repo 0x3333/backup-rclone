@@ -89,7 +89,7 @@ Filters starts with `-` or `+`, `-` will exclude the pattern from the list, `+` 
 Currently, there is no release or version number, so the easiest installation procedure is to download the script and make it executable:
 
 ```bash
-curl "https://raw.githubusercontent.com/0x3333/backup-rclone/master/backup-rclone" \
+rm -f /usr/bin/backup-rclone && curl -L "https://github.com/0x3333/backup-rclone/releases/latest/download/backup-rclone" \
     > /usr/bin/backup-rclone && chmod +x /usr/bin/backup-rclone && /usr/bin/backup-rclone --version
 ```
 
